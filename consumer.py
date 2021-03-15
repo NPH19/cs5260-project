@@ -1,3 +1,4 @@
+import sys
 import logging
 import boto3
 import json
@@ -20,6 +21,13 @@ class consumer():
     
     
 def main():
+    if len(sys.argv) != 5:
+        print('python <filename>.py <name of request bucket> <\"s3\" or \"DynamoDB\"> <name of s3 or DB> <max time to run>')
+        sys.exit()
+    for arg in sys.argv[1:]:
+        print(arg)
+    
+    
     s3client = boto3.client("s3")
     
     widget_json = s3client.get_object(Bucket='usu-cs-5260-hud-requests', Key='1612306368338')
