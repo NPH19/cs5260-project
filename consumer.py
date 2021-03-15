@@ -22,6 +22,7 @@ class consumer():
     
 def main():
     if len(sys.argv) != 5:
+        print("ERROR: args did not match expected (see below)")
         print('python <filename>.py <name of request bucket> <\"s3\" or \"DynamoDB\"> <name of s3 or DB> <max time to run>')
         sys.exit()
     for arg in sys.argv[1:]:
