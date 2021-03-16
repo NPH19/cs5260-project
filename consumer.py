@@ -33,10 +33,10 @@ class consumerClass():
             logging.warn('create widget did not add to s3 or DynamoDB')
             print('no good')
     
-    def WidgetDeleteRequest():
+    def WidgetDeleteRequest(self):
         logging.info("Delete Request Encountered")
     
-    def WidgetChangeRequest():
+    def WidgetChangeRequest(self):
         logging.info("Change Request Encountered")
     
     
@@ -68,13 +68,13 @@ def main():
                 widget_stream = widget_response['Body']
                 widget = json.load(widget_stream)
                 s3client.delete_object(Bucket=req_bucket, Key=key)
-                
+                print('widget type: ',widget['type'])
                 if widget['type'] == 'create':
                     consumer.WidgetCreateRequest(widget)
                 elif widget['type'] == 'delete':
-                    consumer.WidgetDeleteRequest(widget)
-                elif widget['type'] == 'change':
-                    consumer.WidgetChangeRequest(widget)
+                    consumer.WidgetDeleteRequest()
+                elif widget['type'] == 'update':
+                    consumer.WidgetChangeRequest()
                 else:
                     logging.warning("Request was not handled!")
         
