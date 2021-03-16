@@ -68,7 +68,7 @@ def main():
                 widget_stream = widget_response['Body']
                 widget = json.load(widget_stream)
                 s3client.delete_object(Bucket=req_bucket, Key=key)
-                print('widget type: ',widget['type'])
+
                 if widget['type'] == 'create':
                     consumer.WidgetCreateRequest(widget)
                 elif widget['type'] == 'delete':
