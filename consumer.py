@@ -13,10 +13,22 @@ class consumerClass():
         self.store_name = store_name
 
     def WidgetCreateRequest(self, widget):
+        print(widget)
         if self.store_strategy == 's3':
             key = 'widgets/'+str(widget['owner'])+'/'+str(widget['widgetId'])
             self.s3client.put_object(Bucket=self.store_name, Key=key, Body=str(widget))
-            logging.info('key: ',key,' added successfully')
+            logging.info('key: ',key,' added successfully to s3 bucket')
+        elif self.store_strategy == 'DynamoDB':
+            table_dict = {}
+            table_dict['widgetId'] = widget['widgetId']
+            table_dict['owner'] = widget['owner']
+            table_dict['label'] = widget['label']
+            table_dict['description'] = widget['description']
+            table_dict['other'] = widget['otherAttributes']
+            
+            DynoDB = boto3.resource('dynamodb').Table(self.store_name).put_item(Item=table_dict)
+            logging.info('widgetId: ',widget['widgetId'],' added successfully to DynamoDB table')
+            
         else:
             logging.warn('create widget did not add to s3 or DynamoDB')
             print('no good')
@@ -45,26 +57,26 @@ def main():
     request_bucket = s3resource.Bucket(req_bucket)
     s3client = boto3.client("s3")
     
-    # while time()-start <= time_to_run:
-    request_list = request_bucket.objects.all()
-    size = sum(1 for _ in request_list)
-    if size > 0:
-        for request in request_list:
-            key = request.key
-            print(request.key)
-            widget_response = s3client.get_object(Bucket=req_bucket, Key=key)
-            widget_stream = widget_response['Body']
-            widget = json.load(widget_stream)
-            # s3client.delete_object(Bucket=req_bucket, Key=key)
-            
-            if widget['type'] == 'create':
-                consumer.WidgetCreateRequest(widget)
-            elif widget['type'] == 'delete':
-                consumer.WidgetDeleteRequest(widget)
-            elif widget['type'] == 'change':
-                consumer.WidgetChangeRequest(widget)
-            else:
-                logging.warning("Request was not handled!")
+    while time()-start <= time_to_run:
+        request_list = request_bucket.objects.all()
+        size = sum(1 for _ in request_list)
+        if size > 0:
+            for request in request_list:
+                key = request.key
+                print(request.key)
+                widget_response = s3client.get_object(Bucket=req_bucket, Key=key)
+                widget_stream = widget_response['Body']
+                widget = json.load(widget_stream)
+                s3client.delete_object(Bucket=req_bucket, Key=key)
+                
+                if widget['type'] == 'create':
+                    consumer.WidgetCreateRequest(widget)
+                elif widget['type'] == 'delete':
+                    consumer.WidgetDeleteRequest(widget)
+                elif widget['type'] == 'change':
+                    consumer.WidgetChangeRequest(widget)
+                else:
+                    logging.warning("Request was not handled!")
         
     print("finished running for given time")
     sys.exit
