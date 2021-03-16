@@ -17,7 +17,8 @@ class consumerClass():
         if self.store_strategy == 's3':
             key = 'widgets/'+str(widget['owner'])+'/'+str(widget['widgetId'])
             self.s3client.put_object(Bucket=self.store_name, Key=key, Body=str(widget))
-            logging.info('key: ',key,' added successfully to s3 bucket')
+            logging.info(str('key: '+key+' added successfully to s3 bucket'))
+            
         elif self.store_strategy == 'DynamoDB':
             table_dict = {}
             table_dict['widgetId'] = widget['widgetId']
@@ -27,7 +28,7 @@ class consumerClass():
             table_dict['other'] = widget['otherAttributes']
             
             DynoDB = boto3.resource('dynamodb').Table(self.store_name).put_item(Item=table_dict)
-            logging.info('widgetId: ',widget['widgetId'],' added successfully to DynamoDB table')
+            logging.info(str('widgetId: '+widget['widgetId']+' added successfully to DynamoDB table'))
             
         else:
             logging.warn('create widget did not add to s3 or DynamoDB')
