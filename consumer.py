@@ -13,6 +13,7 @@ class consumerClass():
         self.s3client = boto3.client("s3")
         self.request_bucket = request_bucket
         self.store_name = store_name
+        self.s3resource = boto3.resource('s3')
         self.widget = None
 
     def WidgetCreateRequest(self):
@@ -41,7 +42,14 @@ class consumerClass():
         print('delete ',self.widget)
         logging.info("Delete Request Encountered")
         if self.store_strategy == 's3':
-            pass
+            key = 'widgets/'+str(self.widget['owner'])+'/'+str(self.widget['widgetId'])
+            self.s3resource.Object(str(self.store_name), str(key)).delete
+        if self.store_strategy == 'DynamoDB':
+            table_dict = {}
+            table_dict['widgetId'] = self.widget['widgetId']
+            table_dict['owner'] = self.widget['owner']
+            
+            DynoDB = boto3.resource('dynamodb').Table(self.store_name).delete_item(Key=table_dict)
             
     
     def WidgetChangeRequest(self):
