@@ -68,6 +68,62 @@ class consumerClass():
             self.WidgetChangeRequest()
         else:
             logging.warning("Request was not handled!")
+            
+class MessageRetriever():
+    def __init__(self, source, location):
+        self.request_source = source
+        self.request_source_location = location
+        if self.request_source == 'S3':
+            self.client = boto3.client("s3")
+        elif self.request_source == 'SQS':
+            self.client = boto3.client('sqs')
+        else:
+            logging.error('client not setup correctly')
+            
+    
+    def RetrieveNextRequest(self):
+        if self.request_source == 'S3':
+            return self.GetNextRequestFromS3()
+        elif self.request_source == 'SQS':
+            return self.GetNextRequestFromQueue()
+        else:
+            logging.error('setupRetriever() did not process correctly')
+            return
+           
+    def GetNextRequestFromS3(self):
+        request_list = self.request_source_location.objects.all() # grab only 10 at a time
+        size = sum(1 for _ in request_list)
+        if size > 0:
+            for request in request_list:
+                key = request.key
+                print(request.key)
+                widget_response = self.client.get_object(Bucket=self.request_source_location, Key=key)
+                widget_stream = widget_response['Body']
+                widget = json.load(widget_stream)
+                self.client.delete_object(Bucket=self.request_source_location, Key=key)
+        return widget
+    
+    def GetNextRequestFromQueue(self):
+        response = self.client.receive_message(
+            QueueUrl=self.request_source_location,
+            AttributeNames=['SentTimestamp'],
+            MaxNumberOfMessages=1,
+            MessageAttributeNames=['All'],
+            VisibilityTimeout=0,
+            WaitTimeSeconds=0)
+        
+        message = response['Messages'][0]
+        receipt_handle = message['ReceiptHandle']
+        widget_stream = message['Body']
+        widget = json.loads(widget_stream)
+        
+        # TODO: delete queue item
+        self.client.delete_message(
+            QueueUrl=self.request_source_location,
+            ReceiptHandle=receipt_handle)
+            
+        return widget
+        
     
     
 def main():
@@ -75,73 +131,25 @@ def main():
     if len(sys.argv) != 6:
         print("ERROR: args did not match expected (see below)")
         print('python <filename>.py <name of request bucket or url of sqs> <\"s3\" or \"DynamoDB\"> <name of s3 or DB> <max time to run (seconds)> <S3 or SQS>')
-        #python consumer.py usu-cs5260-hud-requests s3 usu-cs5260-hud-web 1
+        # python consumer.py usu-cs5260-hud-requests s3 usu-cs5260-hud-web 1
         # python consumer.py https://sqs.us-east-1.amazonaws.com/321949866576/cs5260-requests s3 usu-cs5260-hud-web 1 SQS
         # python consumer.py https://sqs.us-east-1.amazonaws.com/321949866576/cs5260-requests DynamoDB widgets 1 SQS
         sys.exit()
-    req_bucket = sys.argv[1]
+    req_location = sys.argv[1]
     store_strategy = sys.argv[2]
     store_name = sys.argv[3]
     time_to_run = int(sys.argv[4])
-    source = sys.argv[5]
+    request_source = sys.argv[5]
     
-    consumer = consumerClass(store_strategy, store_name, req_bucket)
-    if source == 'S3':
-        s3resource = boto3.resource("s3")
-        request_bucket = s3resource.Bucket(req_bucket)
-        s3client = boto3.client("s3")
-        
-    if source == 'SQS':
-        sqs = boto3.client('sqs')
-        queue_url = req_bucket
-        
-    
-    while time()-start <= time_to_run:
-        if source == 'S3':
-            request_list = request_bucket.objects.all()
-            size = sum(1 for _ in request_list)
-            if size > 0:
-                for request in request_list:
-                    key = request.key
-                    print(request.key)
-                    widget_response = s3client.get_object(Bucket=req_bucket, Key=key)
-                    widget_stream = widget_response['Body']
-                    widget = json.load(widget_stream)
-                    s3client.delete_object(Bucket=req_bucket, Key=key)
-                    
-                    consumer.sortWidget(widget)
-    
-        elif source == 'SQS':
-            # Handle requests
-            response = sqs.receive_message(
-                QueueUrl=queue_url,
-                AttributeNames=[
-                    'SentTimestamp'
-                ],
-                MaxNumberOfMessages=1,
-                MessageAttributeNames=[
-                    'All'
-                ],
-                VisibilityTimeout=0,
-                WaitTimeSeconds=0
-            )
+    consumer = consumerClass(store_strategy, store_name, req_location)
+    retreiver = MessageRetriever(request_source, req_location)
 
-            message = response['Messages'][0]
-            receipt_handle = message['ReceiptHandle']
-            widget_stream = message['Body']
-            widget = json.loads(widget_stream)
-            
-            consumer.sortWidget(widget)
-            
-            # TODO: delete queue item
-            sqs.delete_message(
-                QueueUrl=queue_url,
-                ReceiptHandle=receipt_handle
-            )
+    while time()-start <= time_to_run:
         
-        else:
-            logging.error("request source not specified correctly")
-        
+        widget = retreiver.RetrieveNextRequest()          
+        consumer.sortWidget(widget)
+
+            
     print("finished running for given time")
     sys.exit()
     
