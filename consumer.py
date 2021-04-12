@@ -24,14 +24,14 @@ class consumerClass():
             logging.info(str('key: '+key+' added successfully to s3 bucket'))
             
         elif self.store_strategy == 'DynamoDB':
-            table_dict = {}
-            table_dict['widgetId'] = self.widget['widgetId']
-            table_dict['owner'] = self.widget['owner']
-            table_dict['label'] = self.widget['label']
-            table_dict['description'] = self.widget['description']
-            table_dict['other'] = self.widget['otherAttributes']
+            dict_to_load_into_db = {}
+            dict_to_load_into_db['widgetId'] = self.widget['widgetId']
+            dict_to_load_into_db['owner'] = self.widget['owner']
+            dict_to_load_into_db['label'] = self.widget['label']
+            dict_to_load_into_db['description'] = self.widget['description']
+            dict_to_load_into_db['other'] = self.widget['otherAttributes']
             
-            DynoDB = boto3.resource('dynamodb').Table(self.store_name).put_item(Item=table_dict)
+            DynoDB = boto3.resource('dynamodb').Table(self.store_name).put_item(Item=dict_to_load_into_db)
             logging.info(str('widgetId: '+self.widget['widgetId']+' added successfully to DynamoDB table'))
             
         else:
@@ -45,11 +45,11 @@ class consumerClass():
             key = 'widgets/'+str(self.widget['owner'])+'/'+str(self.widget['widgetId'])
             self.s3resource.Object(str(self.store_name), str(key)).delete
         if self.store_strategy == 'DynamoDB':
-            table_dict = {}
-            table_dict['widgetId'] = self.widget['widgetId']
-            table_dict['owner'] = self.widget['owner']
+            dict_to_load_into_db = {}
+            dict_to_load_into_db['widgetId'] = self.widget['widgetId']
+            dict_to_load_into_db['owner'] = self.widget['owner']
             
-            DynoDB = boto3.resource('dynamodb').Table(self.store_name).delete_item(Key=table_dict)
+            DynoDB = boto3.resource('dynamodb').Table(self.store_name).delete_item(Key=dict_to_load_into_db)
             
     
     def WidgetChangeRequest(self):
@@ -75,6 +75,7 @@ class MessageRetriever():
         self.request_source_location = location
         if self.request_source == 'S3':
             self.client = boto3.client("s3")
+            self.resource = boto3.resource('s3').Bucket(location)
         elif self.request_source == 'SQS':
             self.client = boto3.client('sqs')
         else:
@@ -91,16 +92,18 @@ class MessageRetriever():
             return
            
     def GetNextRequestFromS3(self):
-        request_list = self.request_source_location.objects.all() # grab only 10 at a time
+        request_list = self.resource.objects.all() # grab only 10 at a time
         size = sum(1 for _ in request_list)
-        if size > 0:
-            for request in request_list:
-                key = request.key
-                print(request.key)
-                widget_response = self.client.get_object(Bucket=self.request_source_location, Key=key)
-                widget_stream = widget_response['Body']
-                widget = json.load(widget_stream)
-                self.client.delete_object(Bucket=self.request_source_location, Key=key)
+        while size < 1:
+            sleep(1)
+        for request in request_list:
+            key = request.key
+            print(request.key)
+            widget_response = self.client.get_object(Bucket=self.request_source_location, Key=key)
+            widget_stream = widget_response['Body']
+            widget = json.load(widget_stream)
+            self.client.delete_object(Bucket=self.request_source_location, Key=key)
+            break
         return widget
     
     def GetNextRequestFromQueue(self):
