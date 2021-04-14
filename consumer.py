@@ -77,7 +77,7 @@ class MessageRetriever():
             self.client = boto3.client("s3")
             self.resource = boto3.resource('s3').Bucket(location)
         elif self.request_source == 'SQS':
-            self.client = boto3.client('sqs')
+            self.client = boto3.client('sqs', region_name='us-east-1')
         else:
             logging.error('client not setup correctly')
             
@@ -114,7 +114,7 @@ class MessageRetriever():
             MessageAttributeNames=['All'],
             VisibilityTimeout=0,
             WaitTimeSeconds=0)
-        
+        # print('response: ',response)
         message = response['Messages'][0]
         receipt_handle = message['ReceiptHandle']
         widget_stream = message['Body']
